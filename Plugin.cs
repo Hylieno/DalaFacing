@@ -40,7 +40,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi += OpenMainUi;
         PluginInterface.UiBuilder.OpenConfigUi += OpenMainUi;
 
-        Log.Information("DalaFacing v0.2.0 loaded.");
+        Log.Information("DalaFacing v0.2.1 loaded.");
     }
 
     public void Dispose()
@@ -144,25 +144,35 @@ public sealed class Plugin : IDalamudPlugin
 
         var drawList = ImGui.GetForegroundDrawList();
         var topColor = ToColor(configuration.ArrowColor, 1.0f);
-        var bottomColor = ToColor(configuration.ArrowColor, 0.32f);
+        var bottomColor = ToColor(configuration.ArrowColor, 0.62f);
 
-        // Bottom first, then the vertical sides, then the top. This painter order is
-        // tuned for FFXIV's normal over-the-shoulder camera and keeps the volume clear.
-        DrawArrowFace(drawList, bottom, bottomColor);
+        // ImGui has no depth buffer. Cull every polygon facing away from the camera
+        // from its projected winding so hidden faces cannot bleed through visible ones.
+        var bottomVisible = IsFrontFacing(bottom[0], bottom[1], bottom[2]);
+        var topVisible = IsFrontFacing(top[0], top[6], top[2]);
+
+        if (bottomVisible)
+            DrawBottomFace(drawList, bottom, bottomColor);
 
         ReadOnlySpan<float> sideBrightness = stackalloc float[7]
         {
             0.42f, 0.58f, 0.72f, 0.82f, 0.62f, 0.48f, 0.36f,
         };
 
+        Span<bool> sideVisible = stackalloc bool[7];
         for (var i = 0; i < worldOutline.Length; i++)
         {
             var next = (i + 1) % worldOutline.Length;
-            drawList.AddQuadFilled(bottom[i], bottom[next], top[next], top[i],
-                ToColor(configuration.ArrowColor, sideBrightness[i]));
+            sideVisible[i] = IsFrontFacing(bottom[i], top[i], top[next]);
+            if (sideVisible[i])
+            {
+                drawList.AddQuadFilled(bottom[i], top[i], top[next], bottom[next],
+                    ToColor(configuration.ArrowColor, sideBrightness[i]));
+            }
         }
 
-        DrawArrowFace(drawList, top, topColor);
+        if (topVisible)
+            DrawTopFace(drawList, top, topColor);
 
         if (!configuration.DrawOutline)
             return;
@@ -173,17 +183,36 @@ public sealed class Plugin : IDalamudPlugin
         for (var i = 0; i < top.Length; i++)
         {
             var next = (i + 1) % top.Length;
-            DrawLine(drawList, bottom[i], bottom[next], outlineColor, thickness);
-            DrawLine(drawList, top[i], top[next], outlineColor, thickness);
-            DrawLine(drawList, bottom[i], top[i], outlineColor, thickness);
+            var previous = (i + top.Length - 1) % top.Length;
+
+            if (bottomVisible || sideVisible[i])
+                DrawLine(drawList, bottom[i], bottom[next], outlineColor, thickness);
+            if (topVisible || sideVisible[i])
+                DrawLine(drawList, top[i], top[next], outlineColor, thickness);
+            if (sideVisible[previous] || sideVisible[i])
+                DrawLine(drawList, bottom[i], top[i], outlineColor, thickness);
         }
     }
 
-    private static void DrawArrowFace(ImDrawListPtr drawList, ReadOnlySpan<Vector2> points, uint color)
+    private static void DrawBottomFace(ImDrawListPtr drawList, ReadOnlySpan<Vector2> points, uint color)
     {
-        // Shaft rectangle + triangular head. The overlap is intentional and seamless.
         drawList.AddQuadFilled(points[0], points[1], points[2], points[6], color);
         drawList.AddTriangleFilled(points[3], points[4], points[5], color);
+    }
+
+    private static void DrawTopFace(ImDrawListPtr drawList, ReadOnlySpan<Vector2> points, uint color)
+    {
+        // Reverse winding from the bottom face: its outward normal points upward.
+        drawList.AddQuadFilled(points[0], points[6], points[2], points[1], color);
+        drawList.AddTriangleFilled(points[3], points[5], points[4], color);
+    }
+
+    private static bool IsFrontFacing(Vector2 a, Vector2 b, Vector2 c)
+    {
+        // Screen Y grows downward, so a positive signed area is the clockwise,
+        // front-facing winding produced by Dalamud's WorldToScreen projection.
+        var signedArea = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+        return signedArea > 0.01f;
     }
 
     private static uint ToColor(Vector4 color, float brightness)
@@ -205,7 +234,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         ImGui.SetNextWindowSize(new Vector2(490f, 430f), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin("DalaFacing - v0.2.0", ref windowOpen))
+        if (!ImGui.Begin("DalaFacing - v0.2.1", ref windowOpen))
         {
             ImGui.End();
             return;
