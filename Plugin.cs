@@ -40,7 +40,7 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi += OpenMainUi;
         PluginInterface.UiBuilder.OpenConfigUi += OpenMainUi;
 
-        Log.Information("DalaFacing v0.2.1 loaded.");
+        Log.Information("DalaFacing v0.2.2 loaded.");
     }
 
     public void Dispose()
@@ -144,19 +144,16 @@ public sealed class Plugin : IDalamudPlugin
 
         var drawList = ImGui.GetForegroundDrawList();
         var topColor = ToColor(configuration.ArrowColor, 1.0f);
-        var bottomColor = ToColor(configuration.ArrowColor, 0.62f);
+        var bottomColor = ToColor(configuration.ArrowColor, 0.92f);
 
         // ImGui has no depth buffer. Cull every polygon facing away from the camera
         // from its projected winding so hidden faces cannot bleed through visible ones.
         var bottomVisible = IsFrontFacing(bottom[0], bottom[1], bottom[2]);
         var topVisible = IsFrontFacing(top[0], top[6], top[2]);
 
-        if (bottomVisible)
-            DrawBottomFace(drawList, bottom, bottomColor);
-
         ReadOnlySpan<float> sideBrightness = stackalloc float[7]
         {
-            0.42f, 0.58f, 0.72f, 0.82f, 0.62f, 0.48f, 0.36f,
+            0.78f, 0.84f, 0.90f, 0.94f, 0.88f, 0.82f, 0.76f,
         };
 
         Span<bool> sideVisible = stackalloc bool[7];
@@ -171,8 +168,12 @@ public sealed class Plugin : IDalamudPlugin
             }
         }
 
+        // ImGui has no depth buffer, so the camera-facing cap must be painted
+        // after every side. Its opaque fill masks all geometry behind it.
         if (topVisible)
             DrawTopFace(drawList, top, topColor);
+        else if (bottomVisible)
+            DrawBottomFace(drawList, bottom, bottomColor);
 
         if (!configuration.DrawOutline)
             return;
@@ -221,7 +222,7 @@ public sealed class Plugin : IDalamudPlugin
             color.X * brightness,
             color.Y * brightness,
             color.Z * brightness,
-            color.W);
+            1.0f);
         return ImGui.ColorConvertFloat4ToU32(shaded);
     }
 
@@ -234,7 +235,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         ImGui.SetNextWindowSize(new Vector2(490f, 430f), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin("DalaFacing - v0.2.1", ref windowOpen))
+        if (!ImGui.Begin("DalaFacing - v0.2.2", ref windowOpen))
         {
             ImGui.End();
             return;
@@ -287,7 +288,7 @@ public sealed class Plugin : IDalamudPlugin
 
         var arrowColor = configuration.ArrowColor;
         if (ImGui.ColorEdit4("Couleur de la flèche", ref arrowColor,
-                ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.AlphaPreviewHalf))
+                ImGuiColorEditFlags.NoAlpha))
         {
             configuration.ArrowColor = arrowColor;
             SaveConfiguration();
@@ -333,6 +334,11 @@ public sealed class Plugin : IDalamudPlugin
         configuration.ArrowThickness = Math.Clamp(configuration.ArrowThickness, 0.1f, 4f);
         configuration.OutlineThickness = Math.Clamp(configuration.OutlineThickness, 1f, 8f);
         configuration.ArrowColor = Vector4.Clamp(configuration.ArrowColor, Vector4.Zero, Vector4.One);
+        configuration.ArrowColor = new Vector4(
+            configuration.ArrowColor.X,
+            configuration.ArrowColor.Y,
+            configuration.ArrowColor.Z,
+            1f);
         configuration.OutlineColor = Vector4.Clamp(configuration.OutlineColor, Vector4.Zero, Vector4.One);
     }
 
