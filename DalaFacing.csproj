@@ -1,6 +1,6 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.2.2.0</Version>
+    <Version>0.2.3.0</Version>
     <TargetFramework>net10.0-windows7.0</TargetFramework>
     <Author>DalaLeno</Author>
     <Name>DalaFacing</Name>
@@ -10,6 +10,7 @@
     <IconUrl>https://raw.githubusercontent.com/Hylieno/DalaLeno/main/plugins/DalaFacing/icon.png</IconUrl>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Update="DalamudPackager" Version="15.0.0" />
